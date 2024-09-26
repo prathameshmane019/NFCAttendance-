@@ -22,7 +22,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:3001', // Replace with your frontend URL
+  origin: 'https://frontend-rfid-one.vercel.app/', // Replace with your frontend URL
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -31,7 +31,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/attendance', authMiddleware, attendanceRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/students', authMiddleware, studentRoutes);
 app.use('/api/sessions', authMiddleware, sessionRoutes);
 app.use('/api/classes', authMiddleware, classRoutes);
