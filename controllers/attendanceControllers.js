@@ -7,6 +7,8 @@ const Session = require('../models/Session')
 exports.recordAttendance = async (req, res) => {
   const { cardId } = req.body;
 
+  console.log(cardId);
+  
   try {
     // Find the student by card ID
     const student = await Student.findOne({ cardId });
