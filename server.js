@@ -20,9 +20,17 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
+  const allowedOrigins = ['https://frontend-rfid-one.vercel.app', 'http://localhost:3000'];
+
 // Middleware
 app.use(cors({
-  origin: 'https://frontend-rfid-one.vercel.app/', // Replace with your frontend URL
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
