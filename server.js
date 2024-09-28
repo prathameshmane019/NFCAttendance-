@@ -15,8 +15,10 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+// Connect to MongoDB with a timeout
+mongoose.connect(process.env.MONGODB_URI, { 
+  serverSelectionTimeoutMS: 5000 // 5 seconds timeout
+})
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -30,6 +32,12 @@ app.use(cors({
 
 app.use(express.json());
 
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -39,8 +47,13 @@ app.use('/api/classes', authMiddleware, classRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error(`${new Date().toISOString()} - Error:`, err);
   res.status(500).send('Something broke!');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 app.listen(port, () => {
