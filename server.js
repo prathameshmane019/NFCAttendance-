@@ -13,25 +13,21 @@ const authMiddleware = require('./middleware/authMiddleware.js');
 dotenv.config();
 
 const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Logging middleware
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
+const port = process.env.PORT || 3000;
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
-})
+mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
+  
+  
+  app.use(cors({
+    origin: '*', // Allow all origins
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+
+app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -40,23 +36,6 @@ app.use('/api/students', authMiddleware, studentRoutes);
 app.use('/api/sessions', authMiddleware, sessionRoutes);
 app.use('/api/classes', authMiddleware, classRoutes);
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!', error: err.message });
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ message: 'Not Found' });
-});
-
-// Start server only if not in Vercel environment
-if (process.env.VERCEL !== '1') {
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-  });
-}
-
-module.exports = app;
