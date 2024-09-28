@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const dotenv = require('dotenv');
 
 const attendanceRoutes = require('./routes/attendanceRoutes');
@@ -23,8 +22,6 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// CORS configuration is now handled by Vercel
-
 app.use(express.json());
 
 // Logging middleware
@@ -43,7 +40,7 @@ app.use('/api/classes', authMiddleware, classRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(`${new Date().toISOString()} - Error:`, err);
-  res.status(500).send('Something broke!');
+  res.status(500).json({ error: 'Internal Server Error', details: err.message });
 });
 
 // Handle unhandled promise rejections
@@ -58,5 +55,4 @@ if (process.env.VERCEL !== '1') {
   });
 }
 
-// Export the Express app
 module.exports = app;
