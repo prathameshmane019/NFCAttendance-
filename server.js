@@ -17,18 +17,13 @@ const port = process.env.PORT || 3000;
 
 // Connect to MongoDB with a timeout
 mongoose.connect(process.env.MONGODB_URI, { 
-  serverSelectionTimeoutMS: 5000 // 5 seconds timeout
+  serverSelectionTimeoutMS: 5000, // 5 seconds timeout
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
 })
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// CORS configuration
-app.use(cors({
-  origin: 'https://frontend-rfid-one.vercel.app',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['X-CSRF-Token', 'X-Requested-With', 'Accept', 'Accept-Version', 'Content-Length', 'Content-MD5', 'Content-Type', 'Date', 'X-Api-Version', 'Authorization'],
-  credentials: true
-}));
+// CORS configuration is now handled by Vercel
 
 app.use(express.json());
 
@@ -56,6 +51,12 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// Only start the server if we're not in a Vercel environment
+if (process.env.VERCEL !== '1') {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
+
+// Export the Express app
+module.exports = app;
