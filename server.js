@@ -23,13 +23,10 @@ mongoose.connect(process.env.MONGODB_URI)
 // CORS configuration
 app.use(cors({
   origin: 'https://frontend-rfid-one.vercel.app',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['X-CSRF-Token', 'X-Requested-With', 'Accept', 'Accept-Version', 'Content-Length', 'Content-MD5', 'Content-Type', 'Date', 'X-Api-Version', 'Authorization'],
   credentials: true
 }));
-
-// Pre-flight requests
-app.options('*', cors());
 
 app.use(express.json());
 
