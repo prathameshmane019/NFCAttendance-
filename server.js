@@ -24,9 +24,22 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// CORS configuration
+// Modified CORS configuration for NodeMCU
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['https://frontend-rfid-one.vercel.app'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, NodeMCU)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',') 
+      : ['https://frontend-rfid-one.vercel.app'];
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -34,16 +47,20 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+// Increase payload size limit for potential RFID data
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
+// RFID specific routes should not require authentication
 app.use('/api/attendance', attendanceRoutes);
+
+// Protected routes
+app.use('/api/auth', authRoutes);
 app.use('/api/students', authMiddleware, studentRoutes);
 app.use('/api/sessions', authMiddleware, sessionRoutes);
 app.use('/api/classes', authMiddleware, classRoutes);
@@ -54,11 +71,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'An unexpected error occurred' });
 });
 
-// For Vercel, we don't actually use app.listen
-// Instead, we export the Express app
 module.exports = app;
 
-// If running the server directly (not on Vercel)
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
