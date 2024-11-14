@@ -7,55 +7,40 @@ const Session = require('../models/Session')
 // Attendance Controller - recordAttendance function
 exports.recordAttendance = async (req, res) => {
   const { cardId } = req.body;
-  
+
   try {
     const student = await Student.findOne({ cardId });
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    // Get current time and day
     const now = new Date();
-    const currentTime = now.toLocaleTimeString('en-US', { 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit'
-    });
     const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+    const currentTime = now.toTimeString().slice(0, 5); // e.g., "14:30"
 
-    // Find matching session
     const session = await Session.findOne({
       days: currentDay,
       startTime: { $lte: currentTime },
-      endTime: { $gte: currentTime }
+      endTime: { $gte: currentTime },
     });
 
-    if (!session) {
-      return res.status(404).json({ message: 'No active session found at this time' });
-    }
+    if (!session) return res.status(404).json({ message: 'No active session found at this time' });
 
-    // Check for existing attendance
-    const todayStart = new Date(now.setHours(0, 0, 0, 0));
-    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
 
     const existingAttendance = await Attendance.findOne({
       studentId: student._id,
       sessionId: session._id,
-      date: {
-        $gte: todayStart,
-        $lte: todayEnd
-      }
+      date: { $gte: todayStart, $lte: todayEnd },
     });
 
-    if (existingAttendance) {
-      return res.status(200).json({ message: 'Attendance already recorded for this session' });
-    }
+    if (existingAttendance) return res.status(200).json({ message: 'Attendance already recorded for this session' });
 
-    // Create new attendance record
     const newAttendance = new Attendance({
       studentId: student._id,
       sessionId: session._id,
-      date: now
+      date: new Date(),
     });
 
     await newAttendance.save();
