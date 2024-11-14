@@ -4,49 +4,58 @@ const ExcelJS = require('exceljs');
 const emailService = require('../services/emailServices');
 const Session = require('../models/Session')
 // Record Attendance
+// Attendance Controller - recordAttendance function
 exports.recordAttendance = async (req, res) => {
   const { cardId } = req.body;
-
-  console.log(cardId);
   
   try {
-    // Find the student by card ID
     const student = await Student.findOne({ cardId });
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Get the current time and day
+    // Get current time and day
     const now = new Date();
-    const currentTime = now.toTimeString().substring(0, 5); // Format: HH:mm
-    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' }); // e.g., "Monday"
+    const currentTime = now.toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit'
+    });
+    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
 
-    // Find a session that matches the current day and time
+    // Find matching session
     const session = await Session.findOne({
       days: currentDay,
       startTime: { $lte: currentTime },
-      endTime: { $gte: currentTime },
+      endTime: { $gte: currentTime }
     });
 
     if (!session) {
       return res.status(404).json({ message: 'No active session found at this time' });
     }
 
-    // Check if attendance has already been recorded for this student and session
+    // Check for existing attendance
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+
     const existingAttendance = await Attendance.findOne({
       studentId: student._id,
       sessionId: session._id,
+      date: {
+        $gte: todayStart,
+        $lte: todayEnd
+      }
     });
 
     if (existingAttendance) {
       return res.status(200).json({ message: 'Attendance already recorded for this session' });
     }
 
-    // Create and save the new attendance record
+    // Create new attendance record
     const newAttendance = new Attendance({
       studentId: student._id,
       sessionId: session._id,
-      date: now, // Storing the current date and time
+      date: now
     });
 
     await newAttendance.save();
@@ -56,6 +65,7 @@ exports.recordAttendance = async (req, res) => {
     res.status(500).json({ message: 'Error recording attendance' });
   }
 };
+
 // Updated getAttendanceReport function
 exports.getAttendanceReport = async (req, res) => {
   try {

@@ -32,7 +32,7 @@ const corsOptions = {
     
     const allowedOrigins = process.env.ALLOWED_ORIGINS 
       ? process.env.ALLOWED_ORIGINS.split(',') 
-      : ['https://frontend-rfid-one.vercel.app'];
+      : ['http://localhost:3001'];
     
     if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
       callback(null, true);
