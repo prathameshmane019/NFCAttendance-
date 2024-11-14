@@ -21,7 +21,8 @@ exports.recordAttendance = async (req, res) => {
       startTime: { $lte: currentTime },
       endTime: { $gte: currentTime },
     });
-
+    console.log(session);
+    
     if (!session) return res.status(404).json({ message: 'No active session found at this time' });
 
     const todayStart = new Date();
