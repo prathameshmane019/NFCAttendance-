@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -24,32 +23,48 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
-// Modified CORS configuration for NodeMCU
+// Modified CORS configuration to handle both production and development
 const corsOptions = {
-  origin: (origin, callback) => {
+  origin: function(origin, callback) {
+    // Define allowed origins
+    const allowedOrigins = [
+      'https://frontend-rfid-one.vercel.app',
+      'http://localhost:3001',     // Frontend local development
+      'http://localhost:3000',     // Backend local development
+      'http://127.0.0.1:3001',    // Alternative local development
+      'http://127.0.0.1:3000'     // Alternative local development
+    ];
+    
     // Allow requests with no origin (like mobile apps, curl, NodeMCU)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(',') 
-      : ['https://frontend-rfid-one.vercel.app'];
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('Blocked origin:', origin); // Helpful for debugging
       callback(new Error('Not allowed by CORS'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  maxAge: 600
+  maxAge: 600,
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
 // Increase payload size limit for potential RFID data
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Debug middleware for development
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log('Origin:', req.headers.origin);
+    next();
+  });
+}
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -65,16 +80,34 @@ app.use('/api/students', authMiddleware, studentRoutes);
 app.use('/api/sessions', authMiddleware, sessionRoutes);
 app.use('/api/classes', authMiddleware, classRoutes);
 
-// Error handling middleware
+// Error handling middleware with improved logging
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'An unexpected error occurred' });
+  console.error('Error details:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    origin: req.headers.origin
+  });
+  
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      message: 'CORS error: Origin not allowed',
+      origin: req.headers.origin
+    });
+  }
+  
+  res.status(500).json({ 
+    message: process.env.NODE_ENV === 'production' 
+      ? 'An unexpected error occurred' 
+      : err.message 
+  });
 });
-
-module.exports = app;
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
   });
 }
+
+module.exports = app;

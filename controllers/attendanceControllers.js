@@ -2,7 +2,8 @@ const Attendance = require('../models/Attendance');
 const Student = require('../models/Student');
 const ExcelJS = require('exceljs');
 const emailService = require('../services/emailServices');
-const Session = require('../models/Session')
+const Session = require('../models/Session');
+const Class = require('../models/Class');
 // Record Attendance
 exports.recordAttendance = async (req, res) => {
   const { cardId } = req.body;
@@ -280,23 +281,137 @@ exports.downloadAttendanceReport = async (req, res) => {
   }
 };
 exports.sendAbsenceNotifications = async (req, res) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   try {
-    const presentStudents = await Attendance.find({ date: today }).distinct('studentId');
-    const absentStudents = await Student.find({ _id: { $nin: presentStudents } });
+    const { startDate, endDate, classId } = req.body;
+console.log(req.body);
 
-    for (const student of absentStudents) {
-      await emailService.sendAbsenceNotification(student);
+    // Validate required parameters
+    if (!startDate || !endDate || !classId) {
+      return res.status(400).json({
+        message: 'Missing required parameters: startDate, endDate, and classId',
+      });
     }
 
-    res.status(200).json({ message: 'Absence notifications sent' });
+    // Parse dates
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Validate date range
+    if (start > end) {
+      return res.status(400).json({
+        message: 'Start date cannot be after end date',
+      });
+    }
+
+    const daysDiff = (end - start) / (1000 * 60 * 60 * 24);
+    if (daysDiff > 31) {
+      return res.status(400).json({
+        message: 'Date range cannot exceed 31 days',
+      });
+    }
+
+    // Fetch sessions for the class within the date range
+    const sessions = await Session.find({
+      days: { $in: getDaysArray(start, end) },
+    });
+
+    // Fetch students in the class
+    const students = await Student.find({ class:classId }).select('name email').lean();
+    if (!students.length) {
+      return res.status(404).json({
+        message: 'No students found in this class',
+      });
+    }
+
+    // Get absence records for each student
+    const absenteeReport = await Promise.all(
+      students.map(async (student) => {
+        const absentSessions = await Promise.all(
+          sessions.map(async (session) => {
+            const isPresent = await Attendance.findOne({
+              studentId: student._id,
+              sessionId: session._id,
+              date: { $gte: start, $lte: end },
+            });
+
+            if (!isPresent) {
+              return {
+                date: getSessionDate(session, start, end),
+                startTime: session.startTime,
+                endTime: session.endTime,
+              };
+            }
+            return null;
+          })
+        );
+
+        const filteredAbsentSessions = absentSessions.filter(Boolean);
+
+        if (filteredAbsentSessions.length > 0) {
+          try {
+            await emailService.sendDetailedAbsenceNotification(
+              student,
+              filteredAbsentSessions
+            );
+
+            return {
+              studentName: student.name,
+              email: student.email,
+              absentSessions: filteredAbsentSessions,
+            };
+          } catch (emailError) {
+            console.error(
+              `Failed to send email to ${student.email}:`,
+              emailError
+            );
+            return null;
+          }
+        }
+      })
+    );
+
+    const filteredAbsenteeReport = absenteeReport.filter(Boolean);
+
+    if (filteredAbsenteeReport.length === 0) {
+      return res.status(200).json({
+        message: 'No absences found for the selected period',
+        absenteeReport: [],
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Absence notifications sent successfully',
+      absenteeReport: filteredAbsenteeReport,
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error processing absent students' });
+    console.error('Error in sendAbsenceNotifications:', error);
+    return res.status(500).json({
+      message: 'Error sending absence notifications',
+      error: error.message,
+    });
   }
 };
+// Helper functions remain the same
+function getDaysArray(start, end) {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const daysSet = new Set();
+  for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+    daysSet.add(days[dt.getDay()]);
+  }
+  return Array.from(daysSet);
+}
 
+function getSessionDate(session, start, end) {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+    if (session.days.includes(days[dt.getDay()])) {
+      return dt.toISOString().split('T')[0];
+    }
+  }
+  return null;
+}
 // Remove Attendance Record
 exports.removeAttendance = async (req, res) => {
   const { studentId, date } = req.body;
